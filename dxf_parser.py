@@ -97,7 +97,7 @@ class DXFParser():
             self.entry_dxf_path.delete(0, tk.END)
             self.entry_dxf_path.insert(0, path)
 
-    def load_dxf(self, dxf_path):
+    def load_dxf(self, dxf_path: str):
         '''
         加载 DXF 文件，并将模型空间中的实体存储到 msp 属性中。
         
@@ -130,8 +130,8 @@ class DXFParser():
         :return: 绘制的圆形对象 ID
         '''
         if not entity.dxftype() == 'CIRCLE':
-            logging.error(f"Entity is not a circle: {entity.dxftype()}")
-            return -1
+            error_msg = f"Entity is not a CIRCLE: {entity.dxftype()}"
+            raise ValueError(error_msg)
         
         center = entity.dxf.center
         radius = entity.dxf.radius
@@ -148,8 +148,8 @@ class DXFParser():
         :return: 绘制的线段对象 ID
         '''
         if not entity.dxftype() == 'LINE':
-            logging.error(f"Entity is not a line: {entity.dxftype()}")
-            return -1
+            error_msg = f"Entity is not a LINE: {entity.dxftype()}"
+            raise ValueError(error_msg)
         
         start = entity.dxf.start
         end = entity.dxf.end
@@ -166,11 +166,11 @@ class DXFParser():
         :return: 绘制的对象 ID
         '''
         if not entity.dxftype() == 'LWPOLYLINE':
-            logging.error(f"Entity is not a LWPOLYLINE: {entity.dxftype()}")
-            return -1
+            erroe_msg = f"Entity is not a LWPOLYLINE: {entity.dxftype()}"
+            raise ValueError(erroe_msg)
         
         points = entity.get_points()
-        if len(points) > 2 and points[0][:2] == points[-1][:2]:
+        if len(points) > 3 and points[0][:2] == points[-1][:2]:
             # 如果第 1 个点与最后一个点相同，则认为是闭合多边形，交给 parse_lwpolyline_closed_polygon 处理
             return self.parse_lwpolyline_closed_polygon(entity, target_layer_id)
         elif len(points) == 2 and all(p[4] == 1.0 for p in entity):
@@ -189,12 +189,14 @@ class DXFParser():
         :return: 绘制的多边形对象 ID
         '''
         if not entity.dxftype() == 'LWPOLYLINE':
-            logging.error(f"Entity is not a LWPOLYLINE: {entity.dxftype()}")
-            return -1
+            error_msg = f"Entity is not a LWPOLYLINE: {entity.dxftype()}"
+            raise ValueError(error_msg)
+        
         points = entity.get_points()
-        if len(points) < 3:
-            logging.error("LWPOLYLINE must have at least three points for closed polygon parsing.")
-            return -1
+        if len(points) <= 3:
+            error_msg = "LWPOLYLINE must have at least 4 points for closed polygon parsing."
+            raise ValueError(error_msg)
+        
         logging.info(f"Drawing closed LWPOLYLINE polygon with points: {points}")
         # 忽略 points 中的最后一个点，绘制多边形
         return self.shape_editor.polygon(
@@ -212,13 +214,13 @@ class DXFParser():
         :return: 绘制的弧线对象 ID
         '''
         if not entity.dxftype() == 'LWPOLYLINE':
-            logging.error(f"Entity is not a LWPOLYLINE: {entity.dxftype()}")
-            return -1
+            error_msg = f"Entity is not a LWPOLYLINE: {entity.dxftype()}"
+            raise ValueError(error_msg)
         
         points = entity.get_points()
         if len(points) < 2:
-            logging.error("LWPOLYLINE must have at least two points for arc parsing.")
-            return -1
+            error_msg = "LWPOLYLINE must have at least 2 points for arc parsing."
+            raise ValueError(error_msg)
 
         start_point = points[0][:2]  # 弧线起点
         end_point = points[-1][:2]  # 弧线终点
@@ -231,7 +233,6 @@ class DXFParser():
         )
         return self.shape_editor.arc(center[0], center[1], radius, start_angle, angle_rotate, target_layer_id, Filled=False)
 
-
     def parse_lwpolyline_line(self, entity, target_layer_id: int) -> int:
         '''
         解析 LWPOLYLINE 实体，并绘制为多段线段。
@@ -241,13 +242,13 @@ class DXFParser():
         :return: 绘制的最后一段线段对象 ID
         '''
         if not entity.dxftype() == 'LWPOLYLINE':
-            logging.error(f"Entity is not a LWPOLYLINE: {entity.dxftype()}")
-            return -1
+            error_msg = f"Entity is not a LWPOLYLINE: {entity.dxftype()}"
+            raise ValueError(error_msg)
         
         points = entity.get_points()
         if len(points) < 2:
-            logging.error("LWPOLYLINE must have at least 2 points for line parsing.")
-            return -1
+            error_msg = "LWPOLYLINE must have at least 2 points for line parsing."
+            raise ValueError(error_msg)
 
         logging.info(f"Drawing LWPOLYLINE line with points: {points}")
         for i in range(len(points) - 1):
@@ -265,8 +266,8 @@ class DXFParser():
         :return: 绘制的多边形对象 ID
         '''
         if not entity.dxftype() == 'HATCH':
-            logging.error(f"Entity is not a HATCH: {entity.dxftype()}")
-            return -1
+            error_msg = f"Entity is not a HATCH: {entity.dxftype()}"
+            raise ValueError(error_msg)
         
         # 统计 HATCH 边界的顶点
         vertices = []
@@ -274,11 +275,11 @@ class DXFParser():
             for edge in path.edges:
                 vertices.append(edge.start)  # 保存每个 edge 的起点作为多边形顶点
 
-        logging.info(f"Drawing HATCH with vertices: {vertices}")
         if not vertices:
-            logging.error("HATCH has no vertices to draw.")
-            return -1
+            warn_msg = "HATCH has no vertices to draw."
+            raise ValueError(warn_msg)
         
+        logging.info(f"Drawing HATCH with vertices: {vertices}")
         # 使用 polygon 方法绘制 HATCH 的边界
         return self.shape_editor.polygon(
             [(vertex.x, vertex.y) for vertex in vertices], target_layer_id, Filled=True
@@ -302,8 +303,7 @@ class DXFParser():
             return
         self.job_path = job_path.encode('utf-8')
         
-        if self.shape_editor:
-            self.shape_editor = None
+        # 初始化 ShapeEditor
         self.shape_editor = ShapeEditor(self.sdk_path, self.job_path)
 
         try:
@@ -324,22 +324,31 @@ class DXFParser():
         hatch_count = 0
         for entity in self.msp:
             if entity.dxftype() == 'CIRCLE':
-                id = self.parse_circle(entity, target_layer_id)
-                if not id == -1:
+                try:
+                    self.parse_circle(entity, target_layer_id)
                     circle_count += 1
+                except Exception as e:
+                    logging.error(f"Failed to parse CIRCLE: {e}")
             elif entity.dxftype() == 'LINE':
-                id = self.parse_line(entity, target_layer_id)
-                if not id == -1:
+                try:
+                    self.parse_line(entity, target_layer_id)
                     line_count += 1
+                except Exception as e:
+                    logging.error(f"Failed to parse LINE: {e}")
             elif entity.dxftype() == 'LWPOLYLINE':
-                id = self.parse_lwpolyline(entity, target_layer_id)
-                # if not id == -1:
-                lwpolyline_count += 1
+                try:
+                    self.parse_lwpolyline(entity, target_layer_id)
+                    lwpolyline_count += 1
+                except Exception as e:
+                    logging.error(f"Failed to parse LWPOLYLINE: {e}")
             elif entity.dxftype() == 'HATCH':
-                id = self.parse_hatch(entity, target_layer_id)
-                if not id == -1:
+                try:
+                    self.parse_hatch(entity, target_layer_id)
                     hatch_count += 1
+                except Exception as e:
+                    logging.error(f"Failed to parse HATCH: {e}")
             else:
+                # 对于不支持的实体类型，记录日志并跳过
                 logging.info(f"Unsupported DXF entity type: {entity.dxftype()}")
         vSDK_SaveJob()
 
@@ -377,7 +386,7 @@ class DXFParser():
         if not os.path.exists(job_folder):
             logging.error("Job folder %s does not exist.", job_folder)
             return ""
-        gerber_path = os.path.join(job_folder, layer_name + ".gbr")
+        gerber_path = os.path.join(job_folder, layer_name + ".gbr")  # 导出路径为 Job 目录
         vSDK_Layer_ExportGerber(self.shape_editor.pcb, layer_id, gerber_path.encode(), 0)
         logging.info("Exported Gerber files to %s", gerber_path)
         return job_folder
@@ -389,45 +398,3 @@ if __name__ == "__main__":
         format='%(asctime)s - %(levelname)s - %(message)s',
     )
     parser = DXFParser(sdk_path)  # 实例化 DXFParser
-    # try:
-    #     parser.load_dxf(dxf_path)
-    # except FileNotFoundError as e:
-    #     logging.error(e)
-    # else:
-        
-
-    #     vSDK_SaveJob()
-
-    #     job_folder = parser.export_layer_gerber(layer_name, layer_id)
-    #     logging.info(f"Gerber files exported to: {job_folder}")
-        
-    # 遍历 dxf 实体，找到所有 LWPOLYLINE 实体，并筛选出以下两种情况：
-    # 1. 第一个点与最后一个点相同
-    # 2. 只含两个点，且 2 个点的 bulge 值均为 1.0
-    # 统计两类实体的数量，并且输出不符合以上两种情况的 LWPOLYLINE 实体的点坐标。
-    # closed_count = 0
-    # bulge_count = 0
-    # for entity in parser.msp:
-    #     if entity.dxftype() == 'LWPOLYLINE':
-    #         points = list(entity.get_points())
-    #         if len(points) > 1 and points[0][:2] == points[-1][:2]:
-    #             logging.debug(f"LWPOLYLINE is closed: {points}")
-    #             closed_count += 1
-    #         elif len(points) == 2 and all(p[4] == 1.0 for p in entity):
-    #             logging.debug(f"LWPOLYLINE with two points and bulge 1.0: {points}")
-    #             bulge_count += 1
-    #         else:
-    #             logging.warning(f"LWPOLYLINE does not meet criteria: {points}")
-    # logging.info(f"Closed LWPOLYLINE count: {closed_count}")
-    # logging.info(f"LWPOLYLINE with two points and bulge 1.0 count: {bulge_count}")
-
-    # 遍历 dxf 实体，找到所有 HATCH 实体，并输出其边界路径。
-    # hatch_count = 0
-    # for entity in parser.msp:
-    #     if entity.dxftype() == 'HATCH':
-    #         # logging.info(f"HATCH found with paths: {entity.paths}")
-    #         for path in entity.paths:
-    #             for edge in path.edges:
-    #                 print(f"Edge start: {edge.start}, end: {edge.end}")
-    #         hatch_count += 1
-    # logging.info(f"HATCH count: {hatch_count}")
